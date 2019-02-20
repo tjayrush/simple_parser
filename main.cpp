@@ -268,7 +268,7 @@ string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int A
            * which is likely where our current bug lies
            * 
            */
-          int elementNum = (param.at(param.find('[')+1)) - '0';
+          int elementNum = stoi(param.substr(param.find('[')+1, param.find(']')));
           
           /* 
            * Generate a list of types the array has in scope; do we have ints, or even int[]s? Important to know, as we
