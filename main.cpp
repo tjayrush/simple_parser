@@ -17,7 +17,7 @@ enum Direction { LEFT, RIGHT };
 // ABIDecoder
 
 string decode(string rawFunction, string abi);
-string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int ABIPointer);
+string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int &ABIPointer);
 
 // ABIUtilHex
 
@@ -81,7 +81,9 @@ string decode(string rawFunction, string abi){
    for(string s : parseABI(abi)){
       cout << s << "|||\n";
    }
-   string total = decodeParams(decodedParams, parseABI(abi), 0);
+
+   int ABIPointer = 0;
+   string total = decodeParams(decodedParams, parseABI(abi), ABIPointer);
 
    return total;   
 }
@@ -108,7 +110,7 @@ string decode(string rawFunction, string abi){
 	 * */
 
 
-string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int ABIPointer){
+string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int &ABIPointer){
    
    string total = "";
    
@@ -130,10 +132,14 @@ string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int A
          ABIPointer++;
 
       } else if(param.find("int") != -1 && param.find("[") == -1){
+
+         //By default, let's assume it is a 256-bit integer
+         int bitSize = 256;
+
          //Convert integer at ABIPointer
          mpz_t integer;
          mpz_init(integer);
-         Hex32ToInt(integer, parsedABI[ABIPointer], 256);
+         Hex32ToInt(integer, parsedABI[ABIPointer], bitSize);
 
          //add to total
          total += bigIntToString(integer);
@@ -143,16 +149,15 @@ string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int A
          
       } else if(param.find("string") != -1 && param.find("[") == -1){
          
-         int tempPointer;
          //Find offset
          int stringOffset = Hex32ToInteger(parsedABI[ABIPointer]);
          //Temporary pointer we can use with the parsedABI array - allows us to see where the actual value starts
-         tempPointer = stringOffset / 32;
+         ABIPointer = stringOffset / 32;
 
          //Get length at 1st 32-byte element pointer points to  TODO: Consider using Hex32ToInt instead
-         int byteLength = Hex32ToInteger(parsedABI[tempPointer]);
+         int byteLength = Hex32ToInteger(parsedABI[ABIPointer]);
          //Using the byteLength, we can now determine how to parse the string on the 2nd
-         string strparam = Hex32ToString(parsedABI[tempPointer+1], byteLength);
+         string strparam = Hex32ToString(parsedABI[ABIPointer+1], byteLength);
 				
          //Concatenate strings
          total += strparam;
@@ -240,14 +245,14 @@ string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int A
           /*
            * Temporary pointer we can use with the parsedABI array
            */
-          int tempPointer;
+          //int tempPointer;
           /* 
            * This temporary pointer is intended to work as a pointer which STARTS initialized at the "real values"
            * of the array. Since we will need to pass a pointer which will point to a "new scope" (set of parameter
            * "value/pointer" 32-byte hex values), we use this as a value we can advance.
            * 
            */
-          if(parsedParams.size() != 1) {
+/*          if(parsedParams.size() != 1) {
              //Find offset pointing to "real values" of dynamic array
              int arrOffset = Hex32ToInteger(parsedABI[ABIPointer]);
              tempPointer = arrOffset / 32;
@@ -255,7 +260,7 @@ string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int A
              tempPointer = ABIPointer;
           }
 
-
+*/
 	
           //Number of elements
           /* 
@@ -268,7 +273,7 @@ string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int A
            * which is likely where our current bug lies
            * 
            */
-          int elementNum = (param.at(param.find('[')+1)) - '0';
+          int elementNum = stoi(param.substr(param.find('[')+1, param.find(']')));
           
           /* 
            * Generate a list of types the array has in scope; do we have ints, or even int[]s? Important to know, as we
@@ -306,13 +311,13 @@ string decodeParams(vector<string> parsedParams, vector<string> parsedABI, int A
            * which is likely NOT quite the case
            * 
            * */				
-          string arrparam = "[" + decodeParams(arrParams, parsedABI, tempPointer) + "]";		
+          string arrparam = "[" + decodeParams(arrParams, parsedABI, ABIPointer) + "]";		
 
           //Add to the total
           total += arrparam;
 
           //Advance it forward to the next parameter "value/pointer" 32-byte hex value			
-          ABIPointer++;
+          //ABIPointer++;
 
 
       }
